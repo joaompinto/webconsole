@@ -3,6 +3,7 @@ class WebConsole extends HTMLElement {
         super();
         this.prompt = this.getAttribute('prompt') || '>';
         this.maxHistory = parseInt(this.getAttribute('max-history')) || 500;
+        this.maxInputHistory = parseInt(this.getAttribute('max-input-history')) || 500;
         
         // Verify required dependencies
         if (typeof marked === 'undefined') {
@@ -20,7 +21,16 @@ class WebConsole extends HTMLElement {
         this.shadowRoot.innerHTML = `
             <style id="themeStyle"></style>
             <div class="console" id="consoleOutput"></div>
-            <input type="text" class="input" id="consoleInput" placeholder="Type a command...">
+            <input type="text" class="input" id="consoleInput" placeholder="Type a command..." autocomplete="off">
+            <div class="legend">
+                <div class="legend-group">
+                    <span class="legend-item" data-key="↑">Previous command</span>
+                    <span class="legend-item" data-key="↓">Next command</span>
+                </div>
+                <div class="legend-group">
+                    <span class="legend-item" data-key="PgUp">Go to/Expand previous output</span>
+                </div>
+            </div>
         `;
         
         // Set initial theme
@@ -32,10 +42,13 @@ class WebConsole extends HTMLElement {
         }
 
         this._messageCounter = 0; // Add counter for unique IDs
+        this._history = [];
+        this._historyIndex = -1;
+        this._currentInput = '';
     }
 
     static get observedAttributes() {
-        return ['placeholder', 'theme', 'height', 'max-history', 'spacing'];
+        return ['placeholder', 'theme', 'height', 'max-history', 'spacing', 'prompt', 'max-input-history'];
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -43,6 +56,8 @@ class WebConsole extends HTMLElement {
             this.shadowRoot.querySelector('#consoleInput').placeholder = newValue;
         } else if (name === 'theme') {
             this.updateTheme(newValue);
+        } else if (name === 'prompt') {
+            this.prompt = newValue || '>';
         } else if (name === 'height') {
             this.updateHeight(newValue);
         } else if (name === 'max-history') {
@@ -50,25 +65,84 @@ class WebConsole extends HTMLElement {
             this.trimHistory();
         } else if (name === 'spacing') {
             this.style.setProperty('--console-spacing', newValue || '0px');
+        } else if (name === 'max-input-history') {
+            this.maxInputHistory = parseInt(newValue) || 500;
+            this.trimInputHistory();
         }
     }
 
     connectedCallback() {
-        this.shadowRoot.querySelector('#consoleInput').addEventListener('keydown', this.handleInput.bind(this));
-        this.shadowRoot.querySelector('#consoleInput').placeholder = this.getAttribute('placeholder') || 'Type a command...';
+        const input = this.shadowRoot.querySelector('#consoleInput');
+        input.addEventListener('keydown', this.handleInput.bind(this));
+        input.placeholder = this.getAttribute('placeholder') || 'Type a command...';
         this.updateTheme(this.getAttribute('theme') || 'dark');
     }
 
     handleInput(event) {
-        if (event.key === 'Enter') {
-            const input = event.target.value;
-            this.log(`${this.prompt} ${input}`, false, true);
-            event.target.value = '';
-            // Dispatch a custom event with the input value
-            this.dispatchEvent(new CustomEvent('input-submit', {
-                detail: { input }
-            }));
+        const input = event.target;
+
+        switch (event.key) {
+            case 'PageUp':
+                event.preventDefault();
+                this.scrollToLastMessage();
+                break;
+
+            case 'Enter':
+                const inputValue = input.value;
+                if (inputValue.trim()) {
+                    this.log(`${this.prompt} ${inputValue}`, false, true);
+                    this._history.push(inputValue);
+                    this.trimInputHistory();
+                    this._historyIndex = this._history.length;
+                    this._currentInput = '';
+                    input.value = '';
+                    this.dispatchEvent(new CustomEvent('input-submit', {
+                        detail: { input: inputValue }
+                    }));
+                }
+                break;
+
+            case 'ArrowUp':
+                event.preventDefault();
+                if (this._historyIndex === this._history.length) {
+                    this._currentInput = input.value;
+                }
+                if (this._historyIndex > 0) {
+                    this._historyIndex--;
+                    input.value = this._history[this._historyIndex];
+                }
+                break;
+
+            case 'ArrowDown':
+                event.preventDefault();
+                if (this._historyIndex < this._history.length) {
+                    this._historyIndex++;
+                    input.value = this._historyIndex === this._history.length 
+                        ? this._currentInput 
+                        : this._history[this._historyIndex];
+                }
+                break;
         }
+    }
+
+    scrollToLastMessage() {
+        const consoleOutput = this.shadowRoot.querySelector('#consoleOutput');
+        const messages = consoleOutput.children;
+        if (messages.length === 0) return;
+
+        const lastMessage = messages[messages.length - 1];
+        
+        // If it's a collapsible message, expand it
+        const collapsibleButton = lastMessage.querySelector('.collapsible-button');
+        const collapsibleContent = lastMessage.querySelector('.collapsible-content');
+        if (collapsibleButton && collapsibleContent) {
+            collapsibleButton.classList.add('expanded');
+            collapsibleContent.classList.add('expanded');
+            collapsibleButton.title = 'Click to collapse';
+        }
+
+        // Scroll the message into view
+        lastMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     trimHistory() {
@@ -78,6 +152,24 @@ class WebConsole extends HTMLElement {
         }
     }
 
+    trimInputHistory() {
+        while (this._history.length > this.maxInputHistory) {
+            this._history.shift();
+        }
+        if (this._historyIndex > this._history.length) {
+            this._historyIndex = this._history.length;
+        }
+    }
+
+    escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     log(message, type = 'info', isPrompt = false) {
         const consoleOutput = this.shadowRoot.querySelector('#consoleOutput');
         const messageElement = document.createElement('div');
@@ -85,12 +177,30 @@ class WebConsole extends HTMLElement {
         messageElement.id = messageId;
         
         const contentSpan = document.createElement('span');
-        // Support both text and HTML content
-        if (message.includes('<') && message.includes('>')) {
-            contentSpan.innerHTML = DOMPurify.sanitize(message);
+        contentSpan.innerHTML = this.escapeHtml(message);
+        messageElement.appendChild(contentSpan);
+        
+        if (isPrompt) {
+            messageElement.classList.add('prompt-message');
         } else {
-            contentSpan.textContent = message;
+            messageElement.classList.add(`message-${type}`);
         }
+        
+        consoleOutput.appendChild(messageElement);
+        this.trimHistory();
+        consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        
+        return messageId;
+    }
+
+    logHTML(message, type = 'info', isPrompt = false) {
+        const consoleOutput = this.shadowRoot.querySelector('#consoleOutput');
+        const messageElement = document.createElement('div');
+        const messageId = `msg-${this._messageCounter++}`;
+        messageElement.id = messageId;
+        
+        const contentSpan = document.createElement('span');
+        contentSpan.innerHTML = DOMPurify.sanitize(message);
         messageElement.appendChild(contentSpan);
         
         if (isPrompt) {
@@ -112,11 +222,7 @@ class WebConsole extends HTMLElement {
 
         // Update content
         const contentSpan = messageElement.querySelector('span') || messageElement;
-        if (newContent.includes('<') && newContent.includes('>')) {
-            contentSpan.innerHTML = DOMPurify.sanitize(newContent);
-        } else {
-            contentSpan.textContent = newContent;
-        }
+        contentSpan.innerHTML = this.escapeHtml(newContent);
 
         // Update type if provided
         if (type) {
@@ -150,16 +256,16 @@ class WebConsole extends HTMLElement {
         const container = document.createElement('div');
         
         const messageElement = document.createElement('div');
-        const button = document.createElement('span');
-        button.textContent = '▼';  // Changed from ▶ to ▼
-        button.className = 'collapsible-button';
-        button.title = 'Click to expand';  // Add initial title
-        
         const messageText = document.createElement('span');
         messageText.textContent = message;
         
-        messageElement.appendChild(button);
+        const button = document.createElement('span');
+        button.textContent = '▼';
+        button.className = 'collapsible-button';
+        button.title = 'Click to expand';
+        
         messageElement.appendChild(messageText);
+        messageElement.appendChild(button);
         
         const detailsElement = document.createElement('div');
         detailsElement.className = 'collapsible-content';
@@ -197,16 +303,16 @@ class WebConsole extends HTMLElement {
         const container = document.createElement('div');
         
         const messageElement = document.createElement('div');
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = messageText;
+        
         const button = document.createElement('span');
         button.textContent = '▼';
         button.className = 'collapsible-button';
         button.title = 'Click to expand';
         
-        const messageSpan = document.createElement('span');
-        messageSpan.textContent = messageText;  // Changed to use textContent instead of innerHTML
-        
-        messageElement.appendChild(button);
         messageElement.appendChild(messageSpan);
+        messageElement.appendChild(button);
         
         const detailsElement = document.createElement('div');
         detailsElement.className = 'collapsible-content';
@@ -240,11 +346,11 @@ class WebConsole extends HTMLElement {
     }
 
     async logWaiting(message, callback) {
-        const msgId = this.log(`${message} <span class="spin">⌛</span>`, 'info');
+        const msgId = this.logHTML(`${this.escapeHtml(message)} <span class="spin">⌛</span>`, 'info');
 
         try {
             const result = await callback();
-            this.updateMessage(msgId, `${message} <span class="success">✅</span>`, 'info');
+            this.updateMessage(msgId, `${message} ✅`, 'info');
             return result;
         } catch (error) {
             this.updateMessage(msgId, `${message} ❌`, 'error');
@@ -290,7 +396,7 @@ class WebConsole extends HTMLElement {
             .collapsible-button {
                 display: inline-block;
                 cursor: pointer;
-                margin-right: 5px;
+                margin-left: 5px;
                 transform: rotate(0deg); 
                 transition: transform 0.2s;
                 width: 12px;
@@ -355,6 +461,35 @@ class WebConsole extends HTMLElement {
             .copy-button:hover {
                 opacity: 1;
             }
+            .legend {
+                display: flex;
+                justify-content: space-between;
+                padding: 6px 10px;
+                font-size: 13px;
+                opacity: 1;
+                font-family: monospace;
+                border-top: 1px solid rgba(128, 128, 128, 0.3);
+                background: rgba(0, 0, 0, 0.1);
+            }
+            .legend-group {
+                display: flex;
+                gap: 16px;
+            }
+            .legend-item {
+                white-space: nowrap;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .legend-item::before {
+                content: attr(data-key);
+                padding: 2px 8px;
+                border: 1px solid currentColor;
+                border-radius: 3px;
+                font-size: 12px;
+                font-weight: bold;
+                background: rgba(255, 255, 255, 0.1);
+            }
         `;
 
         if (theme === 'custom') {
@@ -378,6 +513,10 @@ class WebConsole extends HTMLElement {
                 }
                 .collapsible-content {
                     border-left: 2px solid var(--console-border, #444);
+                }
+                .legend {
+                    color: var(--console-text, #d4d4d4);
+                    background: var(--input-bg, #3c3c3c);
                 }
                 --error-color: var(--console-error, #ff0000);
                 --warning-color: var(--console-warning, #ffa500);
@@ -413,6 +552,10 @@ class WebConsole extends HTMLElement {
                 .collapsible-content {
                     border-left: 2px solid #ccc;
                 }
+                .legend {
+                    color: #333333;
+                    background: #f0f0f0;
+                }
                 --error-color: #ff0000;
                 --warning-color: #ffa500;
                 --info-color: #000000;
@@ -438,6 +581,10 @@ class WebConsole extends HTMLElement {
                 }
                 .collapsible-content {
                     border-left: 2px solid #444;
+                }
+                .legend {
+                    color: #e0e0e0;
+                    background: #2d2d2d;
                 }
                 --error-color: #ff0000;
                 --warning-color: #ffa500;
