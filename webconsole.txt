@@ -1,0 +1,81 @@
+Web Console Component Interface
+=============================
+
+Attributes
+----------
+- prompt: string (default: '>')
+    The prompt character shown before user input
+- placeholder: string (default: 'Type a command...')
+    Placeholder text for the input field
+- theme: 'dark' | 'light' | 'custom' (default: 'dark')
+    Console color theme
+- height: string | 'full' (default: '300px')
+    Height of the console output area
+- max-history: number (default: 500)
+    Maximum number of messages to keep in history
+- content: string
+    Initial content to display in the console
+
+CSS Custom Properties (for custom theme)
+-------------------------------------
+- --console-bg: Console background color
+- --console-text: Console text color
+- --console-border: Console border color
+- --input-bg: Input background color
+- --input-text: Input text color
+- --input-border: Input border color
+- --input-focus-bg: Input background color when focused
+- --prompt-color: Color of the prompt messages
+- --error-color: Color for error messages
+- --warning-color: Color for warning messages
+- --info-color: Color for info messages
+- --console-height: Height of the console (when not using height attribute)
+
+Methods
+-------
+log(message: string, type?: 'info' | 'warning' | 'error', isPrompt?: boolean)
+    Logs a plain text message with optional type
+
+logMD(markdown: string, isError?: boolean)
+    Logs a message with Markdown formatting
+
+logCollapsed(message: string, detailedMessage: string)
+    Logs a collapsible message with plain text content
+
+logCollapsedMD(message: string, detailedMarkdown: string)
+    Logs a collapsible message with Markdown content in details
+
+Events
+------
+'input-submit'
+    Fired when user submits input (press Enter)
+    detail: { input: string }
+
+Dependencies
+-----------
+- marked.js: For Markdown parsing
+- DOMPurify: For HTML sanitization
+
+Example Usage
+------------
+<web-console
+    theme="dark"
+    prompt=">"
+    placeholder="Enter command..."
+    height="300px"
+    max-history="500"
+    content="Welcome to the console!">
+</web-console>
+
+// JavaScript interaction
+const console = document.querySelector('web-console');
+console.log('Hello world');
+console.log('Warning message', 'warning');
+console.log('Error message', 'error');
+console.logMD('# Markdown support\n**Bold** and *italic*');
+
+// Listen for commands
+console.addEventListener('input-submit', (e) => {
+    const command = e.detail.input;
+    // Handle command...
+});

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Console Examples</title>
+    <link rel="stylesheet" href="index.css">
+    <style>
+        .header {
+            margin-bottom: 20px;
+        }
+        #example-selector {
+            width: 100%;
+            padding: 8px;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .console-example {
+            display: none; /* Hide all examples by default */
+        }
+        .console-example.active {
+            display: block;
+        }
+        .custom-height {
+            --console-height: 400px;
+        }
+        .green-theme {
+            --console-bg: #1a2f1a;
+            --console-text: #a8e6a8;
+            --console-border: #2d4d2d;
+            --input-bg: #2d4d2d;
+            --input-text: #a8e6a8;
+            --input-border: #3c663c;
+            --input-focus-bg: #3c663c;
+            --prompt-color: #4caf50;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="examples-list">
+            <label>
+                <input type="radio" name="example" value="markdown-support" checked>
+                Markdown Console
+            </label>
+            <label>
+                <input type="radio" name="example" value="collapsible-messages">
+                Collapsible Messages
+            </label>
+            <label>
+                <input type="radio" name="example" value="fixed-height">
+                Fixed Height Console
+            </label>
+            <label>
+                <input type="radio" name="example" value="css-variable-height">
+                CSS Variable Height
+            </label>
+            <label>
+                <input type="radio" name="example" value="default-console">
+                Default Console
+            </label>
+            <label>
+                <input type="radio" name="example" value="custom-placeholder">
+                Custom Input Placeholder
+            </label>
+            <label>
+                <input type="radio" name="example" value="light-theme">
+                Light Theme
+            </label>
+            <label>
+                <input type="radio" name="example" value="custom-prompt">
+                Custom Prompt
+            </label>
+            <label>
+                <input type="radio" name="example" value="initial-content">
+                Initial Content
+            </label>
+            <label>
+                <input type="radio" name="example" value="green-theme">
+                Green Theme
+            </label>
+            <label>
+                <input type="radio" name="example" value="loading-example">
+                Loading Example
+            </label>
+            <label>
+                <input type="radio" name="example" value="playground">
+                Test Playground
+            </label>
+            <label>
+                <input type="radio" name="example" value="spacing-example">
+                Console Spacing
+            </label>
+        </div>
+
+        <div class="console-container">
+            <div id="markdown-support" class="console-example">
+                <h2>Web Console with Markdown Support</h2>
+                <web-console id="markdownConsole"></web-console>
+            </div>
+
+            <div id="collapsible-messages" class="console-example">
+                <h2>Web Console with Collapsible Messages</h2>
+                <web-console id="collapsibleConsole"></web-console>
+            </div>
+
+            <div id="fixed-height" class="console-example">
+                <h2>Web Console with Custom Fixed Height</h2>
+                <web-console height="200px"></web-console>
+            </div>
+
+            <div id="css-variable-height" class="console-example">
+                <h2>Web Console with CSS Variable Height</h2>
+                <web-console class="custom-height"></web-console>
+            </div>
+
+            <div id="default-console" class="console-example">
+                <h2>Default Web Console</h2>
+                <web-console max-history="100"></web-console>
+            </div>
+
+            <div id="custom-placeholder" class="console-example">
+                <h2>Web Console with Custom Input Placeholder</h2>
+                <web-console placeholder="Enter your command here..."></web-console>
+            </div>
+
+            <div id="light-theme" class="console-example">
+                <h2>Web Console with Light Theme</h2>
+                <web-console theme="light"></web-console>
+            </div>
+
+            <div id="custom-prompt" class="console-example">
+                <h2>Web Console with Custom Prompt</h2>
+                <web-console prompt="$"></web-console>
+            </div>
+
+            <div id="initial-content" class="console-example">
+                <h2>Web Console with Initial Content (innerHTML)</h2>
+                <web-console>Welcome to the console!
+Type 'help' for available commands.</web-console>
+            </div>
+
+            <div id="initial-content-attribute" class="console-example">
+                <h2>Web Console with Initial Content (attribute)</h2>
+                <web-console content="Welcome! This console is ready to use."></web-console>
+            </div>
+
+            <div id="green-theme" class="console-example">
+                <h2>Web Console with Custom Green Theme</h2>
+                <web-console class="green-theme" theme="custom">Welcome to the green theme console!</web-console>
+            </div>
+
+            <div id="loading-example" class="console-example">
+                <h2>Loading Example with Message Updates</h2>
+                <web-console id="loadingConsole"></web-console>
+            </div>
+
+            <div id="playground" class="console-example">
+                <h2>Test Playground</h2>
+                <p>Try typing '.hello' and pressing Enter</p>
+                <web-console id="commandConsole" content="Available commands:
+.hello - Get a friendly greeting"></web-console>
+            </div>
+
+            <div id="spacing-example" class="console-example">
+                <h2>Web Console with Spacing</h2>
+                <web-console spacing="10px"></web-console>
+            </div>
+        </div>
+    </div>
+
+    <script src="webconsole.js"></script>
+    <script src="index.js"></script>
+</body>
+</html>
